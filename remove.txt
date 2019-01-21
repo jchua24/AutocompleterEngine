@@ -1,0 +1,63 @@
+    def remove(self, prefix: List) -> None:
+        """ Remove all values that match the given prefix.
+        Uses a helper function to find the weight of the desired item in order
+        remove it, but also update the weights more efficiently
+        """
+
+        item_weight = self._find_weight(prefix)
+
+        if item_weight != 0.0:
+            if not self.is_leaf():
+                self._prefix_list = self.value
+            else:
+                self._prefix_list = list(self.value)
+
+            if self.is_empty():
+                pass
+            elif self._prefix_list is not None and \
+                    self._prefix_list[0: len(prefix)] == prefix:
+                # remove this whole subtree
+                self.weight = 0.0
+                self.value = []
+                self.subtrees = []
+            else:
+                if self.value == []:
+                    self._leaf_total -= item_weight
+
+                for subtree in self.subtrees:
+                    if not subtree.is_leaf():
+                        subtree._prefix_list = list(subtree.value)
+
+                    if not subtree.is_leaf() and subtree._prefix_list is not None and \
+                    subtree._prefix_list == prefix[0: len(subtree._prefix_list)]:
+                        #update leaf total values so weights can be calculated after
+                        subtree._leaf_total -= item_weight
+                        subtree.remove(prefix)
+                        #don't go into the other subtrees afterwards
+                        break
+                    elif not subtree.is_leaf() and subtree._prefix_list is not None and \
+                            subtree._prefix_list[0: len(prefix)] == prefix:
+                        subtree.weight = 0.0
+                        subtree.value = []
+                        subtree.subtrees = []
+                        break
+
+
+
+                #need to calculate weights here, after recursion has taken place
+                if self._weight_type == "sum":
+                    self.weight = self._leaf_total
+                else:
+                    #weight type is average
+                    length = len(self)
+                    if length != 0:
+                    # length decreases by 1 because the leaf will be removed
+                        self.weight = self._leaf_total / (length)
+
+        self._remove_empty()
+        self.sort_subtrees()
+        if self.value == [] and len(self.subtrees) == 1 and not self.subtrees[
+            0].is_leaf():
+            self.value, self.weight, self.subtrees = self.subtrees[0].value, \
+                                                     self.subtrees[0].weight, \
+                                                     self.subtrees[0].subtrees

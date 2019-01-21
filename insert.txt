@@ -1,0 +1,221 @@
+    def insert(self, value: Any, weight: float, prefix: List) -> None:
+        """DOCSTRING"""
+
+
+        if self.value == []:
+            #case for when the root is empty and/or when the tree is empty
+            self.insert_normal(value, weight, prefix)
+        else:
+            #ATTEMPT #1
+            # new_tree = CompressedPrefixTree(self._weight_type)
+            # new_tree.value = []
+            # new_tree.subtrees.append(self)
+            #
+            # new_tree.insert_normal(value, weight, prefix)
+            # print(new_tree)
+
+            #self = new_tree
+
+            #ATTEMPT #2
+            temp = self._copy()
+
+            #self.subtrees.append(temp)
+            self.subtrees = [temp]
+            self.value = []
+            self.insert_normal(value, weight, prefix)
+
+
+
+    def insert_normal(self, value, weight, prefix):
+        """DOCSTRING """
+        if self.value == []:
+            self._leaf_total += weight
+            self.weight = self._leaf_total  # starting weight that will be updated
+            # sort subtrees
+            self.sort_subtrees()
+
+        duplicate_found = False
+        if prefix == []:
+            max_len = 1
+            tree = self
+            self._leaf_total -= weight
+        else:
+            max_len = 0
+            tree = None
+            for subtree in self.subtrees:
+                # find subtree with longest common prefix
+                if subtree.is_leaf():
+                    i = CompressedPrefixTree._pt_of_diff(self, prefix)
+                    if i > max_len:
+                        max_len = i
+                        tree = subtree
+                else:
+                    i = CompressedPrefixTree._pt_of_diff(subtree, prefix)
+                    if i > max_len:
+                        max_len = i
+                        tree = subtree
+        if max_len > 0:
+            duplicate_found = True
+            common_prefix = prefix[:max_len]
+
+            if tree.value == prefix:
+
+                leaf_exists, same_leaf = False, False
+                leaf_index = -1
+                leaf_value = []
+
+                # for loop
+                for tree_index in range(len(tree.subtrees)):
+                    if tree.subtrees[tree_index].is_leaf():
+                        leaf_index = tree_index
+                        leaf_exists = True
+                        leaf_value.append(tree.subtrees[tree_index])
+                for val in leaf_value:
+                    if val.value == value:
+                        same_leaf = True
+                        break
+                if (not same_leaf) and leaf_exists:
+                    # same prefix sequence and the values are different
+                    # new value tree
+                    tree._leaf_total += weight
+                    leaf = CompressedPrefixTree(self._weight_type)
+                    leaf.value = value
+                    leaf.weight, leaf._leaf_total = weight, weight
+                    leaf._prefix_list = prefix
+                    tree.subtrees.append(leaf)
+
+                    if tree._weight_type == "sum":
+                        tree.weight = tree._leaf_total
+                    elif tree._weight_type == "average":
+                        tree.weight = tree._leaf_total / len(tree)
+
+                elif leaf_exists and (leaf_index != -1):
+                    # value already inserted into tree - only update weight
+                    # update weight of final prefix sequence
+
+                    tree.weight += weight
+                    tree._leaf_total += weight
+                    i = tree.subtrees.index(val)
+                    tree.subtrees[i].weight += weight
+                    tree.subtrees[i]._leaf_total += weight
+
+                    if tree._weight_type == "sum":
+                        tree.weight = tree._leaf_total
+                    elif tree._weight_type == "average":
+                        tree.weight = tree._leaf_total / len(tree)
+
+                    self.sort_subtrees()
+
+                else:
+                    # prefixes are the same but no leaf, create leaf
+                    tree._leaf_total += weight
+
+                    # create new leaf tree and add it
+                    leaf = CompressedPrefixTree(self._weight_type)
+                    leaf.value = value
+                    leaf.weight = weight
+                    leaf._leaf_total = weight
+                    leaf._prefix_list = prefix
+                    tree.subtrees.append(leaf)
+
+                    if tree._weight_type == "sum":
+                        tree.weight = tree._leaf_total
+                    elif tree._weight_type == "average":
+                        tree.weight = tree._leaf_total / len(tree)
+
+                    tree.sort_subtrees()
+                    self.sort_subtrees()
+
+            elif self.value == common_prefix:
+                duplicate_found = False
+
+            elif tree.value == common_prefix:
+                tree.weight += weight
+                tree._leaf_total += weight
+                tree.insert_normal(value, weight, prefix)
+                tree.sort_subtrees()
+
+            elif tree.is_leaf():
+                duplicate_found = False
+            else:
+                if duplicate_found:
+                    # create tree for common prefix
+                    prefix_tree = CompressedPrefixTree(self._weight_type)
+                    prefix_tree.value = common_prefix
+                    prefix_tree.weight = weight + tree.weight
+                    prefix_tree._leaf_total = weight + tree._leaf_total
+
+                    # prefix_tree._prefix_list = prefix #TODO ADDED
+                    self.subtrees.append(prefix_tree)
+                    self.subtrees.remove(tree)
+                    self.sort_subtrees()
+
+                    prefix_tree.subtrees.append(tree)
+
+                    if common_prefix != prefix:
+                        # create tree with the rest of prefix and a value tree
+                        new_tree = self._final_prefix(weight, prefix, value)
+                        prefix_tree.subtrees.append(new_tree)
+                    else:
+                        # just create a value tree
+                        value_tree = CompressedPrefixTree(self._weight_type)
+                        value_tree.value = value
+                        value_tree.weight, value_tree._leaf_total = weight, weight
+                        value_tree._prefix_list = prefix
+                        prefix_tree.subtrees.append(value_tree)
+
+                    # update weights of all trees and subtrees
+                    if prefix_tree._weight_type == "sum":
+                        prefix_tree.weight = prefix_tree._leaf_total
+                    elif prefix_tree._weight_type == "average":
+                        prefix_tree.weight = prefix_tree._leaf_total /\
+                                             len(prefix_tree)
+
+                    prefix_tree.sort_subtrees()
+
+        # duplicate not found - insert a compressed tree
+        if not duplicate_found:
+            prefix_tree = self._final_prefix(weight, prefix, value)
+            self.subtrees.append(prefix_tree)
+            self.sort_subtrees()
+
+        # update weights of all trees and subtrees
+        if self._weight_type == "sum":
+            self.weight = self._leaf_total
+        elif self._weight_type == "average":
+            self.weight = self._leaf_total / len(self)
+        self.sort_subtrees()
+
+        if self.value == [] and len(self.subtrees) == 1 and not self.subtrees[0].is_leaf():
+            self.value, self.weight, self.subtrees= self.subtrees[0].value, self.subtrees[0].weight, self.subtrees[0].subtrees
+
+
+    def _copy(self) -> CompressedPrefixTree:
+        """Returns an identical copy of """
+
+        # print("self is ")
+        # print(self)
+
+        new_tree = CompressedPrefixTree(self._weight_type)
+        new_tree.value = self.value
+        new_tree.weight = self.weight
+        new_tree._leaf_total = self._leaf_total
+
+        new_subtrees = []
+
+        for subtree in self.subtrees:
+            new_subtrees.append(subtree)
+
+        new_tree.subtrees.extend(new_subtrees)
+
+
+        # print("new tree is")
+        # print(new_tree)
+
+
+        return new_tree
+
+
+
+
+
